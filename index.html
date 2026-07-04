@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Happy Birthday, Baba!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0d1117;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2; /* Keeps text particles on top of photos */
+            pointer-events: auto;
+        }
+        #instruction {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            pointer-events: none;
+            text-align: center;
+            z-index: 3;
+        }
+        /* Styling for the popping family photos */
+        .pop-photo {
+            position: absolute;
+            max-width: 250px;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            opacity: 0;
+            transform: scale(0.7) rotate(-10deg);
+            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1; /* Sits beautifully behind the interactive particles */
+        }
+        .pop-photo.visible {
+            opacity: 0.65; /* Keeps them subtly soft so text is easily readable */
+            transform: scale(1) rotate(var(--rand-rot));
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas1"></canvas>
+    <div id="instruction">Move your mouse or tap to scatter the stars</div>
+
+    <script>
+        const canvas = document.getElementById('canvas1');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let particleArray = [];
+
+        // --- PHOTO POPPING CONFIGURATION ---
+        // Replace these with your actual image file names/paths in the same directory!
+        const photoSources = ['photo1.jpg', 'photo2.jpg', 'photo3.jpg']; 
+        let activePhotos = [];
+
+        function spawnPhoto() {
+            // Remove oldest photo if there are already 3 on screen to keep it clean
+            if (activePhotos.length >= 3) {
+                const oldPhoto = activePhotos.shift();
+                oldPhoto.classList.remove('visible');
+                setTimeout(() => oldPhoto.remove(), 800);
+            }
+
+            const img = document.createElement('img');
+            img.src = photoSources[Math.floor(Math.random() * photoSources.length)];
+            img.classList.add('pop-photo');
+
+            // Generate random positions avoiding the absolute center text area
+            const padding = 60;
+            let posX, posY;
+            
+            if (Math.random() > 0.5) {
+                // Spawn on left or right flanks
+                posX = Math.random() > 0.5 ? padding : (canvas.width - 300 - padding);
+                posY = Math.random() * (canvas.height - 250) + padding;
+            } else {
+                // Spawn near top or bottom edges
+                posX = Math.random() * (canvas.width - 300);
+                posY = Math.random() > 0.5 ? padding : (canvas.height - 250 - padding);
+            }
+
+            img.style.left = `${posX}px`;
+            img.style.top = `${posY}px`;
+            
+            // Give it a unique slight random rotation tilt
+            const randomRotation = (Math.random() * 20 - 10) + 'deg';
+            img.style.setProperty('--rand-rot', randomRotation);
+
+            document.body.appendChild(img);
+            activePhotos.push(img);
+
+            // Trigger animation frame trigger smoothly
+            setTimeout(() => img.classList.add('visible'), 50);
+        }
+
+        // Cycle a new photo into view every 3.5 seconds
+        setInterval(spawnPhoto, 3500);
+        // Spawn the first one shortly after launch
+        setTimeout(spawnPhoto, 1000);
+
+
+        // --- INTERACTIVE PARTICLES (BABA VERSION) ---
+        const mouse = {
+            x: null,
+            y: null,
+            radius: 110
+        }
+
+        window.addEventListener('mousemove', function(event) {
+            mouse.x = event.x;
+            mouse.y = event.y;
+        });
+
+        window.addEventListener('touchmove', function(event) {
+            if (event.touches.length > 0) {
+                mouse.x = event.touches[0].clientX;
+                mouse.y = event.touches[0].clientY;
+            }
+        });
+
+        window.addEventListener('touchend', function() {
+            mouse.x = null;
+            mouse.y = null;
+        });
+
+        class Particle {
+            constructor(x, y) {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.baseX = x;
+                this.baseY = y;
+                this.size = Math.random() * 2 + 1.2;
+                this.density = (Math.random() * 30) + 20; 
+                this.color = `hsl(${Math.random() * 45 + 185}, 100%, 75%)`; 
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.fill();
+            }
+            update() {
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.hypot(dx, dy);
+                let forceDirectionX = dx / distance;
+                let forceDirectionY = dy / distance;
+
+                let maxDistance = mouse.radius;
+                let force = (maxDistance - distance) / maxDistance;
+                
+                if (distance < mouse.radius) {
+                    this.x -= forceDirectionX * force * this.density * 0.7;
+                    this.y -= forceDirectionY * force * this.density * 0.7;
+                } else {
+                    if (this.x !== this.baseX) {
+                        let dxBase = this.x - this.baseX;
+                        this.x -= dxBase / 12; // Snappier response time back to home
+                    }
+                    if (this.y !== this.baseY) {
+                        let dyBase = this.y - this.baseY;
+                        this.y -= dyBase / 12;
+                    }
+                }
+            }
+        }
+
+        function init() {
+            particleArray = [];
+            
+            // Render text string map blueprint
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 15px sans-serif';
+            ctx.fillText('HAPPY', 5, 20);
+            ctx.fillText('BIRTHDAY', 5, 40);
+            ctx.fillText('BABA!', 5, 60);
+            
+            const textCoordinates = ctx.getImageData(0, 0, 180, 80);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Responsive scaling metrics
+            const scale = Math.min(canvas.width / 210, canvas.height / 110) * 0.75;
+            // Mathematical centering math
+            const offsetX = (canvas.width - (110 * scale)) / 2;
+            const offsetY = (canvas.height - (60 * scale)) / 2;
+
+            for (let y = 0; y < textCoordinates.height; y++) {
+                for (let x = 0; x < textCoordinates.width; x++) {
+                    if (textCoordinates.data[(y * 4 * textCoordinates.width) + (x * 4) + 3] > 128) {
+                        let positionX = x * scale + offsetX;
+                        let positionY = y * scale + offsetY;
+                        particleArray.push(new Particle(positionX, positionY));
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particleArray.length; i++) {
+                particleArray[i].update();
+                particleArray[i].draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        animate();
+
+        window.addEventListener('resize', function() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            init();
+        });
+    </script>
+</body>
+</html>
